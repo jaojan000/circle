@@ -17,8 +17,8 @@ jobs:
       fail-fast: false
       matrix:
         target:
-          - { arch: "rockchip/armv8", profile: "lyt_t68m", name: "T68M" }
-          - { arch: "rockchip/armv8", profile: "friendlyarm_nanopi-r3s", name: "R3S" }
+          - { arch: "rockchip/armv8", profile: "rockchip_rk3568-lyt-t68m", name: "T68M" }
+          - { arch: "rockchip/armv8", profile: "rockchip_rk3568-friendlyarm-nanopi-r3s", name: "R3S" }
     
     steps:
       - name: Checkout
@@ -53,6 +53,11 @@ jobs:
             swig time xsltproc
           # Install additional Python modules
           sudo pip3 install pyelftools pycryptodome
+          # Check available targets and devices
+          echo "=== Available Rockchip targets ==="
+          find target/linux/rockchip -name "*.mk" | head -10
+          echo "=== Available device profiles ==="
+          ls -la target/linux/rockchip/image/ 2>/dev/null || echo "Image directory not found"
           # Run prerequisite check
           make prereq
           
@@ -81,14 +86,13 @@ jobs:
         run: |
           cd immortalwrt
           rm -f .config
-          # Create config file
+          # Create config file with explicit target selection
           cat > .config <<EOF
           CONFIG_TARGET_rockchip=y
           CONFIG_TARGET_rockchip_armv8=y
           CONFIG_TARGET_rockchip_armv8_DEVICE_${{ matrix.target.profile }}=y
           CONFIG_BUILD_NLS=y
           CONFIG_IMAGEOPT=y
-          CONFIG_KERNEL_INITRAMFS=y
           CONFIG_TARGET_ROOTFS_TARGZ=y
           CONFIG_TARGET_ROOTFS_SQUASHFS=y
           CONFIG_TARGET_ROOTFS_EXT4FS=y
@@ -104,8 +108,10 @@ jobs:
           EOF
           # Set terminal type for non-interactive environment
           export TERM=xterm
-          # Use defconfig instead of menuconfig for headless builds
+          # Generate default config and show selected target
           make defconfig V=s
+          echo "=== Verifying target selection ==="
+          grep "CONFIG_TARGET" .config | head -10
           
       - name: Build Firmware for ${{ matrix.target.name }}
         run: |
