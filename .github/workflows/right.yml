@@ -10,6 +10,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
+    env:
+      TERM: xterm-256color
+      DEBIAN_FRONTEND: noninteractive
     strategy:
       fail-fast: false
       matrix:
@@ -28,8 +31,11 @@ jobs:
             gcc-multilib g++-multilib gettext git libncurses5-dev libssl-dev \
             python3-distutils rsync unzip zlib1g-dev file wget python3-pip \
             python3-dev python3-setuptools python3-yaml python3-jsonschema \
-            libpython3-dev antlr3 gperf
+            libpython3-dev antlr3 gperf ncurses-term
           sudo pip3 install ply pyelftools
+          # Set up environment for non-interactive builds
+          export TERM=xterm-256color
+          export DEBIAN_FRONTEND=noninteractive
           
       - name: Clone and Prepare Feeds
         run: |
@@ -75,7 +81,8 @@ jobs:
         run: |
           cd immortalwrt
           rm -f .config
-          cat >> .config <<EOF
+          # Create config file
+          cat > .config <<EOF
           CONFIG_TARGET_rockchip=y
           CONFIG_TARGET_rockchip_armv8=y
           CONFIG_TARGET_rockchip_armv8_DEVICE_${{ matrix.target.profile }}=y
@@ -95,7 +102,10 @@ jobs:
           CONFIG_PACKAGE_dockerd=y
           CONFIG_PACKAGE_luci-app-docker=y
           EOF
-          make defconfig
+          # Set terminal type for non-interactive environment
+          export TERM=xterm
+          # Use defconfig instead of menuconfig for headless builds
+          make defconfig V=s
           
       - name: Build Firmware for ${{ matrix.target.name }}
         run: |
