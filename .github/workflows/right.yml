@@ -17,8 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         target:
-          - { arch: "rockchip/armv8", profile: "rockchip_rk3568-lyt-t68m", name: "T68M" }
-          - { arch: "rockchip/armv8", profile: "rockchip_rk3568-friendlyarm-nanopi-r3s", name: "R3S" }
+          - { arch: "rockchip/armv8", profile: "generic", name: "Rockchip-Generic" }
     
     steps:
       - name: Checkout
@@ -58,6 +57,8 @@ jobs:
           find target/linux/rockchip -name "*.mk" | head -10
           echo "=== Available device profiles ==="
           ls -la target/linux/rockchip/image/ 2>/dev/null || echo "Image directory not found"
+          echo "=== Checking armv8.mk for device definitions ==="
+          grep -E "define Device/" target/linux/rockchip/image/armv8.mk | head -10
           # Run prerequisite check
           make prereq
           
@@ -85,12 +86,16 @@ jobs:
       - name: Configure Build for ${{ matrix.target.name }}
         run: |
           cd immortalwrt
-          rm -f .config
+          rm -f .config .config.old
+          
+          echo "=== Checking available Rockchip devices in armv8.mk ==="
+          grep -E "define Device/" target/linux/rockchip/image/armv8.mk || echo "No devices found"
+          
           # Create config file with explicit target selection
           cat > .config <<EOF
           CONFIG_TARGET_rockchip=y
           CONFIG_TARGET_rockchip_armv8=y
-          CONFIG_TARGET_rockchip_armv8_DEVICE_${{ matrix.target.profile }}=y
+          CONFIG_TARGET_MULTI_PROFILE=y
           CONFIG_BUILD_NLS=y
           CONFIG_IMAGEOPT=y
           CONFIG_TARGET_ROOTFS_TARGZ=y
@@ -106,12 +111,29 @@ jobs:
           CONFIG_PACKAGE_dockerd=y
           CONFIG_PACKAGE_luci-app-docker=y
           EOF
+          
           # Set terminal type for non-interactive environment
           export TERM=xterm
-          # Generate default config and show selected target
+          
+          # First run defconfig to expand the basic config
+          echo "=== Running defconfig ==="
           make defconfig V=s
-          echo "=== Verifying target selection ==="
-          grep "CONFIG_TARGET" .config | head -10
+          
+          echo "=== Verifying target selection after defconfig ==="
+          grep "CONFIG_TARGET" .config | head -5
+          
+          # If still showing mediatek, force rockchip selection
+          if grep -q "CONFIG_TARGET_mediatek=y" .config; then
+            echo "=== MediaTek detected, forcing Rockchip selection ==="
+            sed -i 's/CONFIG_TARGET_mediatek=y/# CONFIG_TARGET_mediatek is not set/' .config
+            sed -i 's/# CONFIG_TARGET_rockchip is not set/CONFIG_TARGET_rockchip=y/' .config
+            echo "CONFIG_TARGET_rockchip=y" >> .config
+            echo "CONFIG_TARGET_rockchip_armv8=y" >> .config
+            make defconfig V=s
+          fi
+          
+          echo "=== Final target verification ==="
+          grep "CONFIG_TARGET.*=y" .config | head -5
           
       - name: Build Firmware for ${{ matrix.target.name }}
         run: |
