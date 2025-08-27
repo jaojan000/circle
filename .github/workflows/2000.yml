@@ -1,4 +1,4 @@
-name: Build ImmortalWrt Multi-Target (T68M + R3S)
+name: Build ImmortalWrt Multi-Target
 
 on:
   workflow_dispatch:
